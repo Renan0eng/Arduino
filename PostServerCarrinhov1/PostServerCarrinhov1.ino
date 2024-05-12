@@ -11,56 +11,79 @@ ESP8266WebServer server(80);
 const int led = LED_BUILTIN;
 
 void handleRoot() {
-  String page = "<html lang='en'>\
-    <head>\
-      <meta charset='UTF-8'>\
-      <meta name='viewport' content='width=device-width, initial-scale=1.0'>\
-      <title>Joystick</title>\
-      <style>\
-      body, html { margin: 0; padding: 0; height: 100%; }\
-      .joystick { position: relative; width: 200px; height: 200px; background-color: #333; border-radius: 50%; margin: 100px auto; }\
-      .base { position: absolute; width: 130px; height: 130px; left: 50%; top: 50%; transform: translate(-50%, -50%)rotate(45deg); display: flex; flex-wrap: wrap; justify-content: space-between; align-content: space-between; }\
-      .button { width: 60px; height: 60px; border-radius: 50%; background-color: #999; border: none; cursor: pointer; transform: rotate(-45deg); font-size: 16px; }\
-      .button-up { grid-area: 1 / 2; }\
-      .button-down { grid-area: 3 / 2; }\
-      .button-left { grid-area: 2 / 1; }\
-      .button-right { grid-area: 2 / 3; }\
-      .joystick:before { content: ''; position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.5), transparent); border-radius: 50%; }\
+  String page = "<html lang='pt-br'>\
+  <head>\
+  <meta charset='UTF-8'>\
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\
+  <title>Joystick</title>\
+  <style>\
+    body, html { margin: 0; padding: 0; height: 100%; }\
+    .joystick { position: relative; width: 200px; height: 200px; background-color: #222; border-radius: 50%; margin: 100px auto; display: flex; justify-content: center; align-items: center;}\
+    .stick { width: 60px; height: 60px; background-color: #999; border-radius: 50%; cursor: pointer; left: 50%; top: 50%; transform: translate(-50%, -50%); }\
   </style>\
 </head>\
 <body>\
   <div class='joystick'>\
-    <div class='stick'></div>\
-    <div class='base'>\
-      <button class='button button-up' onclick=\"moveForward()\">Up</button>\
-      <button class='button button-down' onclick=\"moveBackward()\">Down</button>\
-      <button class='button button-left' onclick=\"turnLeft()\">Left</button>\
-      <button class='button button-right' onclick=\"turnRight()\">Right</button>\
-      <script>\
-        function turnLeft() {\
-          sendCommand('left');\
+    <div class='stick' id='stick'></div>\
+    <script>\
+      var stick = document.getElementById('stick');\
+      var joystick = document.querySelector('.joystick');\
+      var joystickRect = joystick.getBoundingClientRect();\
+      var centerX = joystickRect.left + joystickRect.width / 2;\
+      var centerY = joystickRect.top + joystickRect.height / 2;\
+      stick.addEventListener('mousedown', startDrag);\
+      document.addEventListener('mousemove', drag);\
+      document.addEventListener('mouseup', stopDrag);\
+      function startDrag(e) {\
+        e.preventDefault();\
+        document.body.style.userSelect = 'none';\
+        stick.style.transition = 'none';\
+        document.addEventListener('mousemove', drag);\
+        document.addEventListener('mouseup', stopDrag);\
+      }\
+      function drag(e) {\
+        var posX = e.clientX - centerX;\
+        var posY = e.clientY - centerY;\
+        var distance = Math.sqrt(posX * posX + posY * posY);\
+        var maxDistance = joystickRect.width / 2 - stick.offsetWidth / 2;\
+        if (distance <= maxDistance) {\
+          stick.style.transform = `translate(${posX}px, ${posY}px)`;\
+        } else {\
+          var angle = Math.atan2(posY, posX);\
+          var x = Math.cos(angle) * maxDistance;\
+          var y = Math.sin(angle) * maxDistance;\
+          stick.style.transform = `translate(${x}px, ${y}px)`;\
         }\
-        function turnRight() {\
-          sendCommand('right');\
+        sendCommand(posX, posY);\
+      }\
+      function stopDrag() {\
+        document.body.style.userSelect = 'auto';\
+        stick.style.transition = 'transform 0.1s ease';\
+        stick.style.transform = 'none';\
+        document.removeEventListener('mousemove', drag);\
+        document.removeEventListener('mouseup', stopDrag);\
+      }\
+      function sendCommand(posX, posY) {\
+        var angle = Math.atan2(posY, posX);\
+        var distance = Math.sqrt(posX * posX + posY * posY);\
+        var maxDistance = joystickRect.width / 2 - stick.offsetWidth / 2;\
+        var command = '';\
+        if (distance > 20) { \
+          if (angle >= -Math.PI / 4 && angle <= Math.PI / 4) {\
+            command = 'right';\
+          } else if (angle >= Math.PI / 4 && angle <= 3 * Math.PI / 4) {\
+            command = 'down';\
+          } else if (angle >= -3 * Math.PI / 4 && angle <= -Math.PI / 4) {\
+            command = 'up';\
+          } else {\
+            command = 'left';\
+          }\
+        } else {\
+          command = 'stop';\
         }\
-        function moveForward() {\
-          sendCommand('forward');\
-        }\
-        function moveBackward() {\
-          sendCommand('backward');\
-        }\
-        function sendCommand(command) {\
-          var xhttp = new XMLHttpRequest();\
-          xhttp.onreadystatechange = function() {\
-            if (this.readyState == 4 && this.status == 200) {\
-              console.log('Comando enviado: ' + command);\
-            }\
-          };\
-          xhttp.open('GET', '/' + command, true);\
-          xhttp.send();\
-        }\
-      </script>\
-    </div>\
+        console.log('Comando enviado: ' + command);\
+      }\
+    </script>\
   </div>\
 </body>\
 </html>";
