@@ -17,7 +17,7 @@ void handleRoot() {
   <meta name='viewport' content='width=device-width, initial-scale=1.0'>\
   <title>Joystick</title>\
   <style>\
-    body, html { margin: 0; padding: 0; height: 100%; }\
+    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }\
     .joystick { position: relative; width: 200px; height: 200px; background-color: #222; border-radius: 50%; margin: 100px auto; display: flex; justify-content: center; align-items: center;}\
     .stick { width: 60px; height: 60px; background-color: #999; border-radius: 50%; cursor: pointer; left: 50%; top: 50%; transform: translate(-50%, -50%); }\
   </style>\
@@ -31,59 +31,106 @@ void handleRoot() {
       var joystickRect = joystick.getBoundingClientRect();\
       var centerX = joystickRect.left + joystickRect.width / 2;\
       var centerY = joystickRect.top + joystickRect.height / 2;\
+      var intervalID = null;\
       stick.addEventListener('mousedown', startDrag);\
-      document.addEventListener('mousemove', drag);\
+      stick.addEventListener('touchstart', startDragTouch);\
       document.addEventListener('mouseup', stopDrag);\
+      document.addEventListener('touchend', stopDragTouch);\
       function startDrag(e) {\
-        e.preventDefault();\
-        document.body.style.userSelect = 'none';\
-        stick.style.transition = 'none';\
-        document.addEventListener('mousemove', drag);\
-        document.addEventListener('mouseup', stopDrag);\
+          e.preventDefault();\
+          document.body.style.userSelect = 'none';\
+          stick.style.transition = 'none';\
+          document.addEventListener('mousemove', drag);\
+          document.addEventListener('mouseup', stopDrag);\
+          intervalID = setInterval(sendCommand, 200); \
+      }\
+      function startDragTouch(e) {\
+          e.preventDefault();\
+          document.body.style.userSelect = 'none';\
+          stick.style.transition = 'none';\
+          document.addEventListener('touchmove', dragTouch);\
+          document.addEventListener('touchend', stopDragTouch);\
+          intervalID = setInterval(sendCommand, 200);\
       }\
       function drag(e) {\
-        var posX = e.clientX - centerX;\
-        var posY = e.clientY - centerY;\
-        var distance = Math.sqrt(posX * posX + posY * posY);\
-        var maxDistance = joystickRect.width / 2 - stick.offsetWidth / 2;\
-        if (distance <= maxDistance) {\
-          stick.style.transform = `translate(${posX}px, ${posY}px)`;\
-        } else {\
-          var angle = Math.atan2(posY, posX);\
-          var x = Math.cos(angle) * maxDistance;\
-          var y = Math.sin(angle) * maxDistance;\
-          stick.style.transform = `translate(${x}px, ${y}px)`;\
-        }\
-        sendCommand(posX, posY);\
+          var posX = e.clientX - centerX;\
+          var posY = e.clientY - centerY;\
+          moveStick(posX, posY);\
+      }\
+      function dragTouch(e) {\
+          var touch = e.touches[0];\
+          var posX = touch.clientX - centerX;\
+          var posY = touch.clientY - centerY;\
+          moveStick(posX, posY);\
+      }\
+      function moveStick(posX, posY) {\
+          var distance = Math.sqrt(posX * posX + posY * posY);\
+          var maxDistance = joystickRect.width / 2 - stick.offsetWidth / 2;\
+          if (distance <= maxDistance) {\
+              stick.style.transform = `translate(${posX}px, ${posY}px)`;\
+          } else {\
+              var angle = Math.atan2(posY, posX);\
+              var x = Math.cos(angle) * maxDistance;\
+              var y = Math.sin(angle) * maxDistance;\
+              stick.style.transform = `translate(${x}px, ${y}px)`;\
+          }\
       }\
       function stopDrag() {\
-        document.body.style.userSelect = 'auto';\
-        stick.style.transition = 'transform 0.1s ease';\
-        stick.style.transform = 'none';\
-        document.removeEventListener('mousemove', drag);\
-        document.removeEventListener('mouseup', stopDrag);\
+          document.body.style.userSelect = 'auto';\
+          stick.style.transition = 'transform 0.1s ease';\
+          stick.style.transform = 'none';\
+          document.removeEventListener('mousemove', drag);\
+          clearInterval(intervalID); \
       }\
-      function sendCommand(posX, posY) {\
-        var angle = Math.atan2(posY, posX);\
-        var distance = Math.sqrt(posX * posX + posY * posY);\
-        var maxDistance = joystickRect.width / 2 - stick.offsetWidth / 2;\
-        var command = '';\
-        if (distance > 20) { \
-          if (angle >= -Math.PI / 4 && angle <= Math.PI / 4) {\
-            command = 'right';\
-          } else if (angle >= Math.PI / 4 && angle <= 3 * Math.PI / 4) {\
-            command = 'down';\
-          } else if (angle >= -3 * Math.PI / 4 && angle <= -Math.PI / 4) {\
-            command = 'up';\
+      function stopDragTouch() {\
+          document.body.style.userSelect = 'auto';\
+          stick.style.transition = 'transform 0.1s ease';\
+          stick.style.transform = 'none';\
+          document.removeEventListener('touchmove', dragTouch);\
+          clearInterval(intervalID); \
+      }\
+      function sendCommand() {\
+          var posX = parseFloat(stick.style.transform.split('(')[1].split('px')[0]);\
+          var posY = parseFloat(stick.style.transform.split(',')[1].split('px')[0]);\
+          var angle = Math.atan2(posY, posX);\
+          var distance = Math.sqrt(posX * posX + posY * posY);\
+          var maxDistance = joystickRect.width / 2 - stick.offsetWidth / 2;\
+          var command = '';\
+          var power = 0;\
+          if (distance > 20) {\
+              console.log('distance :', distance);\
+              if (angle >= -Math.PI / 4 && angle <= Math.PI / 4) {\
+                  command = 'right';\
+              } else if (angle >= Math.PI / 4 && angle <= 3 * Math.PI / 4) {\
+                  command = 'backward';\
+              } else if (angle >= -3 * Math.PI / 4 && angle <= -Math.PI / 4) {\
+                  command = 'forward';\
+              } else {\
+                  command = 'left';\
+              }\
+              power = 25;\
+              if(distance > 45){\
+                power = 75\
+                }\
+              if(distance > 60){\
+                power = 100\
+                }\
           } else {\
-            command = 'left';\
+              command = 'stop';\
           }\
-        } else {\
-          command = 'stop';\
-        }\
-        console.log('Comando enviado: ' + command);\
+          console.log(`Comando enviado:  /${command}/${power}`);\
+          var xhttp = new XMLHttpRequest();\
+          xhttp.onreadystatechange = function () {\
+              if (this.readyState == 4 && this.status == 200) {\
+                  console.log('Resposta do servidor: ' + xhttp.responseText);\
+              }\
+          };\
+          xhttp.open('POST', '/move', true);\
+          xhttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');\
+          var params = 'command=' + encodeURIComponent(command) + '&power=' + encodeURIComponent(power);\
+          xhttp.send(params);\
       }\
-    </script>\
+  </script>\
   </div>\
 </body>\
 </html>";
@@ -92,14 +139,31 @@ void handleRoot() {
 }
 
 void handleDirection() {
-  String direction = server.uri();
-  // Implemente aqui o código para controlar o carrinho com base na direção recebida
-  // Exemplo: se direction for "/left", vire o carrinho para a esquerda
-  //          se direction for "/right", vire o carrinho para a direita
-  //          e assim por diante
-  Serial.print("direction: ");
-  Serial.println(direction);
-  server.send(200, "text/plain", "Comando recebido: " + direction);
+  String command = server.arg("command");
+  String power = server.arg("power");
+  Serial.println("Comando: " + command + " Potência: " + power);
+  if (command == "forward") {
+    digitalWrite(led, 1);
+    delay(100);
+    digitalWrite(led, 0);
+  } else if (command == "backward") {
+    digitalWrite(led, 1);
+    delay(100);
+    digitalWrite(led, 0);
+  } else if (command == "left") {
+    digitalWrite(led, 1);
+    delay(100);
+    digitalWrite(led, 0);
+  } else if (command == "right") {
+    digitalWrite(led, 1);
+    delay(100);
+    digitalWrite(led, 0);
+  } else if (command == "stop") {
+    digitalWrite(led, 1);
+    delay(100);
+    digitalWrite(led, 0);
+  }
+  server.send(200, "text/plain", "Comando: " + command + " Potência: " + power);
 }
 
 void handleNotFound() {
@@ -140,10 +204,7 @@ void setup(void) {
   }
 
   server.on("/", handleRoot);
-  server.on("/left", handleDirection);
-  server.on("/right", handleDirection);
-  server.on("/forward", handleDirection);
-  server.on("/backward", handleDirection);
+  server.on("/move", HTTP_POST, handleDirection);
   server.onNotFound(handleNotFound);
 
   server.begin();
